@@ -1,0 +1,45 @@
+name: build and deploy wheels
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+        - os: ubuntu-latest
+          ENV: "Boost_DIR=/tmp/boost/boost_1_75_0/stage/lib/cmake"
+          CONFIG: "{project}/configs/ubuntu.sh"
+        - os: macos-latest
+          ENV: ""
+          CONFIG: "{project}/configs/macos.sh"
+
+    env:
+      CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+      CIBW_ENVIRONMENT: ${{ matrix.ENV }}
+      CIBW_BEFORE_ALL: ${{ matrix.CONFIG }}
+      CIBW_TEST_COMMAND: python -c 'import sys; import mpsym; sys.exit(mpsym.test())'
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v2
+        name: install-python
+
+      - name: install-cibuildwheel
+        run: python -m pip install cibuildwheel
+
+      - name: build-wheels
+        run: python -m cibuildwheel mpsym --output-dir wheelhouse
+        env:
+          CIBW_SKIP: "cp27-* pp27-* cp35-* pp35-*"
+
+      - uses: actions/upload-artifact@v2
+        with:
+          path: ./wheelhouse/*.whl
